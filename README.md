@@ -1,23 +1,29 @@
+I'll provide an updated `README.md` that reflects all the changes and provides comprehensive documentation:
+
+```markdown
 # ECS Bottlerocket Cluster with Falcon Sensor - Terraform
 
-This repository provides Terraform configurations to deploy an ECS cluster using Bottlerocket OS and the CrowdStrike Falcon sensor. It's based on the official CrowdStrike AWS CloudFormation template but reimplemented using Terraform for better infrastructure management.
+This repository provides Terraform configurations to deploy an ECS cluster using Bottlerocket OS and the CrowdStrike Falcon sensor. It transforms the official CrowdStrike AWS CloudFormation template into a comprehensive Terraform solution.
 
 ## Solution Overview
 
+### Architecture Components
+
+- VPC with configurable public subnets
+- ECS Cluster running Bottlerocket OS
+- Auto Scaling Group for EC2 instances
+- CrowdStrike Falcon sensor running as ECS daemon service
+- IAM roles and security groups
+- Optional NAT Gateway configuration
+
 ### Original CloudFormation vs Terraform Implementation
 
-The original solution uses AWS CloudFormation template (`falcon-ecs-ec2-daemon.yaml`) to:
-- Create an ECS task definition for the Falcon sensor
-- Deploy it as a daemon service on ECS
-
-Our Terraform implementation:
-1. Maintains the original CloudFormation template for the Falcon sensor deployment
-2. Adds infrastructure as code for:
-   - VPC and networking components
-   - ECS cluster with Bottlerocket OS
-   - Auto Scaling Group configuration
-   - Security groups and IAM roles
-3. Uses variables for environment-specific configurations
+The solution enhances the original CrowdStrike CloudFormation template by:
+1. Maintaining the original Falcon sensor deployment logic
+2. Adding complete infrastructure as code for the supporting components
+3. Providing variable-driven configuration
+4. Adding resource tagging support
+5. Implementing monitoring and security features
 
 ## Prerequisites
 
@@ -29,46 +35,55 @@ Our Terraform implementation:
    - API Client Secret
 4. Falcon sensor image in ECR repository
 
-## Deployment Steps
+## Quick Start
 
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd ecs-bottlerocket-falcon
+cd <repository-name>
 ```
 
 2. Create `terraform.tfvars` file with your values:
 ```hcl
 aws_region           = "us-east-1"
 environment          = "dev"
-vpc_cidr            = "10.0.0.0/16"
 cluster_name         = "ecs-bottlerocket-cluster"
 falcon_cid           = "YOUR_FALCON_CID"
 falcon_client_id     = "YOUR_FALCON_CLIENT_ID"
 falcon_client_secret = "YOUR_FALCON_CLIENT_SECRET"
-falcon_cloud_region  = "us-1"
 falcon_image_path    = "YOUR_ECR_REPO/falconsensor:latest"
-instance_type        = "t3.micro"
-bottlerocket_ami_id  = "ami-01663b95d1b411bf9"  # Update with latest Bottlerocket AMI
-asg_desired_capacity = 2
-asg_max_size        = 4
-asg_min_size        = 1
 ```
 
-3. Initialize Terraform:
+3. Initialize and apply Terraform:
 ```bash
 terraform init
-```
-
-4. Review the deployment plan:
-```bash
 terraform plan
-```
-
-5. Apply the configuration:
-```bash
 terraform apply
 ```
+
+## Configuration Variables
+
+### Network Configuration
+| Variable | Description | Type | Default |
+|----------|-------------|------|---------|
+| vpc_cidr | CIDR block for VPC | string | "10.0.0.0/16" |
+| subnet_count | Number of subnets to create | number | 2 |
+| enable_nat_gateway | Enable NAT Gateway | bool | false |
+
+### Instance Configuration
+| Variable | Description | Type | Default |
+|----------|-------------|------|---------|
+| instance_type | EC2 instance type | string | "t3.micro" |
+| enable_monitoring | Enable detailed monitoring | bool | true |
+| root_volume_size | Size of root volume in GB | number | 30 |
+| root_volume_type | Type of root volume | string | "gp3" |
+
+### Auto Scaling Configuration
+| Variable | Description | Type | Default |
+|----------|-------------|------|---------|
+| asg_desired_capacity | Desired number of instances | number | 2 |
+| asg_max_size | Maximum number of instances | number | 4 |
+| asg_min_size | Minimum number of instances | number | 1 |
 
 ## Verification Steps
 
@@ -87,52 +102,59 @@ aws ecs list-services \
 3. Check running tasks:
 ```bash
 aws ecs list-tasks \
-    --cluster $(terraform output -raw ecs_cluster_name)
+    --cluster $(terraform output -raw ecs_cluster_name) \
+    --service-name crowdstrike-falcon-node-daemon
 ```
 
-4. View task details:
-```bash
-TASK_ARN=$(aws ecs list-tasks \
-    --cluster $(terraform output -raw ecs_cluster_name) \
-    --service-name crowdstrike-falcon-node-daemon \
-    --query 'taskArns[0]' --output text)
+## Adding Nodes
 
-aws ecs describe-tasks \
-    --cluster $(terraform output -raw ecs_cluster_name) \
-    --tasks $TASK_ARN
+To add nodes to your cluster:
+
+1. Update the ASG desired capacity:
+```hcl
+# In terraform.tfvars
+asg_desired_capacity = 3
 ```
 
-5. Verify EC2 instances:
+2. Apply the changes:
 ```bash
+terraform apply
+```
+
+3. Monitor new node registration:
+```bash
+watch -n 10 'aws ecs list-container-instances --cluster $(terraform output -raw ecs_cluster_name)'
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. Instances not joining ECS cluster:
+   - Check security group rules
+   - Verify IAM roles and policies
+   - Review instance user data configuration
+
+2. Falcon sensor not running:
+   - Verify ECR permissions
+   - Check CrowdStrike credentials
+   - Review CloudFormation stack events
+
+### Debugging Commands
+
+```bash
+# Check CloudFormation stack status
+aws cloudformation describe-stack-events \
+    --stack-name $(terraform output -raw cloudformation_stack_name)
+
+# View ECS service events
+aws ecs describe-services \
+    --cluster $(terraform output -raw ecs_cluster_name) \
+    --services crowdstrike-falcon-node-daemon
+
+# Check ASG status
 aws autoscaling describe-auto-scaling-groups \
-    --auto-scaling-group-names $(terraform output -raw ecs_cluster_name)-asg
-```
-
-## Architecture
-
-```
-                                     ┌─────────────────┐
-                                     │                 │
-                                     │  Auto Scaling   │
-                                     │     Group       │
-                                     │                 │
-                                     └────────┬────────┘
-                                              │
-                                              ▼
-┌─────────────────┐                 ┌─────────────────┐
-│                 │                 │                 │
-│   ECS Cluster   │◄────────────────│  EC2 Instances  │
-│                 │                 │  (Bottlerocket) │
-│                 │                 │                 │
-└────────┬────────┘                 └────────┬────────┘
-         │                                   │
-         │                                   ▼
-         │                          ┌─────────────────┐
-         │                          │                 │
-         └─────────────────────────►│ Falcon Sensor  │
-                                   │    (Daemon)     │
-                                   │                 │
-                                   └─────────────────┘
+    --auto-scaling-group-names $(terraform output -raw asg_name)
 ```
 
 ## Clean Up
@@ -142,29 +164,23 @@ To remove all resources:
 terraform destroy
 ```
 
-## Troubleshooting
+## Security Considerations
 
-1. If instances aren't joining the ECS cluster:
-   - Check security group rules
-   - Verify IAM roles and policies
-   - Review instance user data configuration
+1. Network Security:
+   - Instances are launched in public subnets by default
+   - Security groups restrict inbound access
+   - Optional NAT Gateway support for private subnets
 
-2. If Falcon sensor isn't running:
-   - Check ECR permissions
-   - Verify CrowdStrike credentials
-   - Review CloudFormation stack events
+2. Instance Security:
+   - Bottlerocket OS provides enhanced security
+   - Root volume encryption enabled
+   - IMDSv2 supported
+   - Optional termination protection
 
-3. Common issues:
-   ```bash
-   # Check CloudFormation stack status
-   aws cloudformation describe-stack-events \
-       --stack-name $(terraform output -raw cloudformation_stack_name)
-
-   # View ECS service events
-   aws ecs describe-services \
-       --cluster $(terraform output -raw ecs_cluster_name) \
-       --services crowdstrike-falcon-node-daemon
-   ```
+3. Credentials:
+   - Sensitive variables marked as sensitive in Terraform
+   - Credentials should be stored in terraform.tfvars (git ignored)
+   - Consider using AWS Secrets Manager for production
 
 ## Contributing
 
@@ -174,3 +190,5 @@ terraform destroy
 4. Push to the branch
 5. Create a Pull Request
 
+## License
+MIT License
