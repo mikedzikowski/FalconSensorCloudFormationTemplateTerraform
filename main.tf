@@ -137,8 +137,6 @@ resource "aws_iam_role_policy_attachment" "ecs_instance_role_policy" {
 resource "aws_iam_instance_profile" "ecs_instance_profile" {
   name = "${var.environment}-ecs-instance-profile"
   role = aws_iam_role.ecs_instance_role.name
-
-  tags = var.tags
 }
 
 # Deploy the CloudFormation stack for Falcon sensor
@@ -147,12 +145,9 @@ resource "aws_cloudformation_stack" "falcon_sensor" {
   template_body = file("${path.module}/falcon-ecs-ec2-daemon.yaml")
 
   parameters = {
-    ECSClusterName      = aws_ecs_cluster.main.name
-    FalconCID          = var.falcon_cid
-    FalconImagePath    = var.falcon_image_path
-    FalconClientId     = var.falcon_client_id
-    FalconClientSecret = var.falcon_client_secret
-    Region             = var.falcon_cloud_region
+    ECSClusterName  = aws_ecs_cluster.main.name
+    FalconCID       = var.falcon_cid
+    FalconImagePath = var.falcon_image_path
   }
 
   capabilities = ["CAPABILITY_IAM", "CAPABILITY_NAMED_IAM"]
@@ -161,6 +156,4 @@ resource "aws_cloudformation_stack" "falcon_sensor" {
     aws_ecs_cluster.main,
     aws_autoscaling_group.ecs
   ]
-
-  tags = var.tags
 }
