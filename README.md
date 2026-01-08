@@ -168,41 +168,7 @@ Required pipeline variables:
 - AWS credentials
 - CrowdStrike Falcon credentials
 - Environment-specific configurations
-
-## Troubleshooting
-
-If you encounter "already exists" errors, manually clean up resources:
-```bash
-# Delete CloudFormation stack if it exists
-aws cloudformation delete-stack --stack-name test-falcon-ecs-ec2-daemon
-
-# Delete ASG if it exists
-aws autoscaling delete-auto-scaling-group --auto-scaling-group-name test-ecs-asg --force-delete
-
-# Clean up IAM resources if they exist
-aws iam remove-role-from-instance-profile \
-    --instance-profile-name test-ecs-instance-profile \
-    --role-name test-ecs-instance-role
-aws iam delete-instance-profile \
-    --instance-profile-name test-ecs-instance-profile
 ```
-
-## Security Considerations
-
-1. Network Security:
-   - Instances are launched in public subnets by default
-   - Security groups restrict inbound access
-   - Optional NAT Gateway support for private subnets
-
-2. Instance Security:
-   - Bottlerocket OS provides enhanced security
-   - Root volume encryption enabled
-   - IMDSv2 supported
-
-3. Credentials:
-   - Store sensitive values in terraform.tfvars (git ignored)
-   - Use AWS Secrets Manager for production deployments
-   - Follow least privilege principle for IAM roles
 
 ## License
 MIT License
