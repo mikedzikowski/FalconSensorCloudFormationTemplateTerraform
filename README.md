@@ -155,7 +155,6 @@ terraform destroy
                                    │                 │
                                    └─────────────────┘
 ```
-
 ## CI/CD Pipeline Integration
 
 This Terraform configuration can be used in CI/CD pipelines for Infrastructure as Code deployments. The repository includes all necessary configuration files for automated deployments through platforms like:
@@ -169,8 +168,5 @@ Required pipeline variables:
 - CrowdStrike Falcon credentials
 - Environment-specific configurations
 ```
-
-## License
-MIT License
 
 
