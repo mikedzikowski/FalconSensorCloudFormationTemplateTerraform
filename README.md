@@ -4,163 +4,140 @@ This repository provides Terraform configurations to deploy an ECS cluster using
 
 > This implementation is based on the official [CrowdStrike Falcon Sensor CloudFormation Template](https://github.com/CrowdStrike/aws-cloudformation-falcon-sensor-ecs) repository.
 
-## Solution Overview
+## Quick Start with AWS CloudShell
 
-### Architecture Components
+### Prerequisites
+- Access to AWS CloudShell
+- CrowdStrike Falcon sensor image in ECR
+- CrowdStrike Falcon credentials (CID)
 
-- VPC with configurable public subnets
-- ECS Cluster running Bottlerocket OS
-- Auto Scaling Group for EC2 instances
-- CrowdStrike Falcon sensor running as ECS daemon service
-- IAM roles and security groups
-- Optional NAT Gateway configuration
-
-### Original CloudFormation vs Terraform Implementation
-
-The solution enhances the original CrowdStrike CloudFormation template by:
-1. Maintaining the original Falcon sensor deployment logic
-2. Adding complete infrastructure as code for the supporting components
-3. Providing variable-driven configuration
-4. Adding resource tagging support
-5. Implementing monitoring and security features
-
-## Prerequisites
-
-1. AWS CLI configured with appropriate credentials
-2. Terraform installed (version >= 1.0.0)
-3. CrowdStrike Falcon credentials:
-   - Customer ID (CID)
-   - API Client ID
-   - API Client Secret
-4. Falcon sensor image in ECR repository
-
-## Quick Start
-
-1. Clone the repository:
+### Deployment Steps
+1. Clean up and clone repository:
 ```bash
-git clone <repository-url>
-cd <repository-name>
+# Go to home directory and remove existing repository
+cd ~
+rm -rf FalconSensorCloudFormationTemplateTerraform
+
+# Clone repository
+git clone https://github.com/mikedzikowski/FalconSensorCloudFormationTemplateTerraform.git
+cd FalconSensorCloudFormationTemplateTerraform
+
+# Get the official CrowdStrike YAML
+curl -o falcon-ecs-ec2-daemon.yaml https://raw.githubusercontent.com/CrowdStrike/aws-cloudformation-falcon-sensor-ecs/main/falcon-sensor-ecs-ec2/falcon-ecs-ec2-daemon.yaml
 ```
 
-2. Create `terraform.tfvars` file with your values:
-```hcl
-aws_region           = "us-east-1"
-environment          = "dev"
-cluster_name         = "ecs-bottlerocket-cluster"
+2. Create terraform.tfvars:
+```bash
+cat << EOF > terraform.tfvars
+# Region and Environment
+aws_region  = "us-east-1"
+environment = "test"
+
+# Network Configuration
+vpc_cidr            = "10.0.0.0/16"
+subnet_count        = 2
+enable_nat_gateway  = false
+
+# ECS Cluster Configuration
+cluster_name = "ecs-bottlerocket-test"
+
+# CrowdStrike Falcon Configuration
 falcon_cid           = "YOUR_FALCON_CID"
-falcon_client_id     = "YOUR_FALCON_CLIENT_ID"
-falcon_client_secret = "YOUR_FALCON_CLIENT_SECRET"
-falcon_image_path    = "YOUR_ECR_REPO/falconsensor:latest"
+falcon_image_path    = "YOUR_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/falconsensor:latest"
+
+# Instance Configuration
+instance_type        = "t3.micro"
+bottlerocket_ami_id  = "ami-01663b95d1b411bf9"
+
+# Resource Tags
+tags = {
+  Environment = "test"
+  Project     = "falcon-ecs"
+  Terraform   = "true"
+}
+EOF
 ```
 
-3. Initialize and apply Terraform:
+3. Deploy:
 ```bash
 terraform init
 terraform plan
 terraform apply
 ```
 
-## Configuration Variables
-
-### Network Configuration
-| Variable | Description | Type | Default |
-|----------|-------------|------|---------|
-| vpc_cidr | CIDR block for VPC | string | "10.0.0.0/16" |
-| subnet_count | Number of subnets to create | number | 2 |
-| enable_nat_gateway | Enable NAT Gateway | bool | false |
-
-### Instance Configuration
-| Variable | Description | Type | Default |
-|----------|-------------|------|---------|
-| instance_type | EC2 instance type | string | "t3.micro" |
-| enable_monitoring | Enable detailed monitoring | bool | true |
-| root_volume_size | Size of root volume in GB | number | 30 |
-| root_volume_type | Type of root volume | string | "gp3" |
-
-### Auto Scaling Configuration
-| Variable | Description | Type | Default |
-|----------|-------------|------|---------|
-| asg_desired_capacity | Desired number of instances | number | 2 |
-| asg_max_size | Maximum number of instances | number | 4 |
-| asg_min_size | Minimum number of instances | number | 1 |
-
-## Verification Steps
-
-1. Check ECS cluster status:
+### Verification
 ```bash
-aws ecs list-container-instances \
-    --cluster $(terraform output -raw ecs_cluster_name)
-```
-
-2. Verify Falcon sensor service:
-```bash
-aws ecs list-services \
-    --cluster $(terraform output -raw ecs_cluster_name)
-```
-
-3. Check running tasks:
-```bash
+# Check ECS tasks
 aws ecs list-tasks \
-    --cluster $(terraform output -raw ecs_cluster_name) \
+    --cluster ecs-bottlerocket-test \
     --service-name crowdstrike-falcon-node-daemon
+
+# Check EC2 instances
+aws autoscaling describe-auto-scaling-groups \
+    --auto-scaling-group-names test-ecs-asg
 ```
 
-## Adding Nodes
-
-To add nodes to your cluster:
-
-1. Update the ASG desired capacity:
-```hcl
-# In terraform.tfvars
-asg_desired_capacity = 3
-```
-
-2. Apply the changes:
+### Cleanup
 ```bash
-terraform apply
+terraform destroy
 ```
 
-3. Monitor new node registration:
-```bash
-watch -n 10 'aws ecs list-container-instances --cluster $(terraform output -raw ecs_cluster_name)'
+## Architecture
+
 ```
+                                     ┌─────────────────┐
+                                     │                 │
+                                     │  Auto Scaling   │
+                                     │     Group       │
+                                     │                 │
+                                     └────────┬────────┘
+                                              │
+                                              ▼
+┌─────────────────┐                 ┌─────────────────┐
+│                 │                 │                 │
+│   ECS Cluster   │◄────────────────│  EC2 Instances  │
+│                 │                 │  (Bottlerocket) │
+│                 │                 │                 │
+└────────┬────────┘                 └────────┬────────┘
+         │                                   │
+         │                                   ▼
+         │                          ┌─────────────────┐
+         │                          │                 │
+         └─────────────────────────►│ Falcon Sensor  │
+                                   │    (Daemon)     │
+                                   │                 │
+                                   └─────────────────┘
+```
+
+## CI/CD Pipeline Integration
+
+This Terraform configuration can be used in CI/CD pipelines for Infrastructure as Code deployments. The repository includes all necessary configuration files for automated deployments through platforms like:
+- GitHub Actions
+- AWS CodePipeline
+- Jenkins
+- Azure DevOps
+
+Required pipeline variables:
+- AWS credentials
+- CrowdStrike Falcon credentials
+- Environment-specific configurations
 
 ## Troubleshooting
 
-### Common Issues
-
-1. Instances not joining ECS cluster:
-   - Check security group rules
-   - Verify IAM roles and policies
-   - Review instance user data configuration
-
-2. Falcon sensor not running:
-   - Verify ECR permissions
-   - Check CrowdStrike credentials
-   - Review CloudFormation stack events
-
-### Debugging Commands
-
+If you encounter "already exists" errors, manually clean up resources:
 ```bash
-# Check CloudFormation stack status
-aws cloudformation describe-stack-events \
-    --stack-name $(terraform output -raw cloudformation_stack_name)
+# Delete CloudFormation stack if it exists
+aws cloudformation delete-stack --stack-name test-falcon-ecs-ec2-daemon
 
-# View ECS service events
-aws ecs describe-services \
-    --cluster $(terraform output -raw ecs_cluster_name) \
-    --services crowdstrike-falcon-node-daemon
+# Delete ASG if it exists
+aws autoscaling delete-auto-scaling-group --auto-scaling-group-name test-ecs-asg --force-delete
 
-# Check ASG status
-aws autoscaling describe-auto-scaling-groups \
-    --auto-scaling-group-names $(terraform output -raw asg_name)
-```
-
-## Clean Up
-
-To remove all resources:
-```bash
-terraform destroy
+# Clean up IAM resources if they exist
+aws iam remove-role-from-instance-profile \
+    --instance-profile-name test-ecs-instance-profile \
+    --role-name test-ecs-instance-role
+aws iam delete-instance-profile \
+    --instance-profile-name test-ecs-instance-profile
 ```
 
 ## Security Considerations
@@ -174,20 +151,19 @@ terraform destroy
    - Bottlerocket OS provides enhanced security
    - Root volume encryption enabled
    - IMDSv2 supported
-   - Optional termination protection
 
 3. Credentials:
-   - Sensitive variables marked as sensitive in Terraform
-   - Credentials should be stored in terraform.tfvars (git ignored)
-   - Consider using AWS Secrets Manager for production
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+   - Store sensitive values in terraform.tfvars (git ignored)
+   - Use AWS Secrets Manager for production deployments
+   - Follow least privilege principle for IAM roles
 
 ## License
+
 MIT License
+
+## Support
+
+For issues related to:
+- Infrastructure deployment: Open an issue in this repository
+- Falcon sensor: Contact CrowdStrike support
+- AWS services: Contact AWS support
