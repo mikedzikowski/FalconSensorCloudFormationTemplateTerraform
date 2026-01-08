@@ -1,14 +1,39 @@
-aws_region           = "us-east-1"
-environment          = "dev"
-vpc_cidr            = "10.0.0.0/16"
-cluster_name         = "ecs-bottlerocket-cluster"
-falcon_cid           = "YOUR_FALCON_CID"
-falcon_client_id     = "YOUR_FALCON_CLIENT_ID"
-falcon_client_secret = "YOUR_FALCON_CLIENT_SECRET"
+# Region and Environment
+aws_region  = "us-east-1"
+environment = "dev"
+
+# Network Configuration
+vpc_cidr      = "10.0.0.0/16"
+subnet_count  = 2
+enable_nat_gateway = false
+
+# ECS Cluster Configuration
+cluster_name = "ecs-bottlerocket-cluster"
+
+# CrowdStrike Falcon Configuration
+falcon_cid           = "YOUR_FALCON_CID"            # Example: 1234567890ABCDEF1234567890ABCDEF-12
+falcon_client_id     = "YOUR_FALCON_CLIENT_ID"      # Example: 1234567890abcdef1234567890abcdef
+falcon_client_secret = "YOUR_FALCON_CLIENT_SECRET"  # Example: 1234567890ABCDEFabcdef1234567890
 falcon_cloud_region  = "us-1"
-falcon_image_path    = "YOUR_ECR_REPO/falconsensor:latest"
+falcon_image_path    = "YOUR_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/falconsensor:latest"
+
+# Instance Configuration
 instance_type        = "t3.micro"
-bottlerocket_ami_id  = "YOUR_BOTTLEROCKET_AMI_ID"
-asg_desired_capacity = 2
-asg_max_size        = 4
-asg_min_size        = 1
+bottlerocket_ami_id  = "ami-01663b95d1b411bf9"  # Update with latest Bottlerocket AMI for your region
+enable_monitoring    = true
+root_volume_size     = 30
+root_volume_type     = "gp3"
+
+# Auto Scaling Group Configuration
+asg_desired_capacity        = 2
+asg_max_size               = 4
+asg_min_size              = 1
+enable_termination_protection = false
+
+# Resource Tags
+tags = {
+  Environment = "dev"
+  Project     = "falcon-ecs"
+  Terraform   = "true"
+  Owner       = "your-team"
+}
