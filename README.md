@@ -1,6 +1,3 @@
-I'll provide an updated `README.md` that reflects all the changes and provides comprehensive documentation:
-
-```markdown
 # ECS Bottlerocket Cluster with Falcon Sensor - Terraform
 
 This repository provides Terraform configurations to deploy an ECS cluster using Bottlerocket OS and the CrowdStrike Falcon sensor. It transforms the official CrowdStrike AWS CloudFormation template into a comprehensive Terraform solution.
