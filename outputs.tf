@@ -17,3 +17,18 @@ output "public_subnet_ids" {
   description = "IDs of the public subnets"
   value       = aws_subnet.public[*].id
 }
+
+output "ecs_security_group_id" {
+  description = "ID of the ECS instances security group"
+  value       = aws_security_group.ecs_instances.id
+}
+
+output "asg_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = aws_autoscaling_group.ecs.name
+}
+
+output "launch_template_id" {
+  description = "ID of the Launch Template"
+  value       = aws_launch_template.ecs.id
+}
