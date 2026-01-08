@@ -13,32 +13,41 @@ resource "aws_vpc" "main" {
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  tags = {
-    Name = "${var.environment}-ecs-vpc"
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.environment}-ecs-vpc"
+    }
+  )
 }
 
 # Create public subnets
 resource "aws_subnet" "public" {
-  count             = 2
+  count             = var.subnet_count
   vpc_id           = aws_vpc.main.id
   cidr_block       = cidrsubnet(var.vpc_cidr, 8, count.index)
   availability_zone = data.aws_availability_zones.available.names[count.index]
   
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = !var.enable_nat_gateway
 
-  tags = {
-    Name = "${var.environment}-ecs-public-subnet-${count.index + 1}"
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.environment}-ecs-public-subnet-${count.index + 1}"
+    }
+  )
 }
 
 # Create Internet Gateway
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
-  tags = {
-    Name = "${var.environment}-ecs-igw"
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.environment}-ecs-igw"
+    }
+  )
 }
 
 # Create route table
@@ -50,14 +59,17 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.main.id
   }
 
-  tags = {
-    Name = "${var.environment}-ecs-public-rt"
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.environment}-ecs-public-rt"
+    }
+  )
 }
 
 # Associate route table with subnets
 resource "aws_route_table_association" "public" {
-  count          = 2
+  count          = var.subnet_count
   subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
@@ -75,18 +87,24 @@ resource "aws_security_group" "ecs_instances" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name = "${var.environment}-ecs-instances-sg"
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.environment}-ecs-instances-sg"
+    }
+  )
 }
 
 # Create ECS Cluster
 resource "aws_ecs_cluster" "main" {
   name = var.cluster_name
 
-  tags = {
-    Environment = var.environment
-  }
+  tags = merge(
+    var.tags,
+    {
+      Environment = var.environment
+    }
+  )
 }
 
 # Create IAM role for ECS instances
@@ -105,6 +123,8 @@ resource "aws_iam_role" "ecs_instance_role" {
       }
     ]
   })
+
+  tags = var.tags
 }
 
 # Attach ECS instance policy
@@ -117,6 +137,8 @@ resource "aws_iam_role_policy_attachment" "ecs_instance_role_policy" {
 resource "aws_iam_instance_profile" "ecs_instance_profile" {
   name = "${var.environment}-ecs-instance-profile"
   role = aws_iam_role.ecs_instance_role.name
+
+  tags = var.tags
 }
 
 # Deploy the CloudFormation stack for Falcon sensor
@@ -139,4 +161,6 @@ resource "aws_cloudformation_stack" "falcon_sensor" {
     aws_ecs_cluster.main,
     aws_autoscaling_group.ecs
   ]
+
+  tags = var.tags
 }
