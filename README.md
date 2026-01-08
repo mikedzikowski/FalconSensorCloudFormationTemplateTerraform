@@ -174,12 +174,3 @@ terraform destroy
 4. Push to the branch
 5. Create a Pull Request
 
-## License
-
-MIT License
-```
-
-Would you like me to:
-1. Add more troubleshooting steps?
-2. Include additional verification commands?
-3. Expand any specific section?
