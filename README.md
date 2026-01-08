@@ -1,3 +1,6 @@
+Here's the complete updated README.md:
+
+```markdown
 # ECS Bottlerocket Cluster with Falcon Sensor - Terraform
 
 This repository provides Terraform configurations to deploy an ECS cluster using Bottlerocket OS and the CrowdStrike Falcon sensor. It transforms the official CrowdStrike AWS CloudFormation template into a comprehensive Terraform solution.
@@ -101,28 +104,44 @@ aws autoscaling describe-auto-scaling-groups \
     --auto-scaling-group-names test-ecs-asg
 ```
 
-### Testing Auto-Deployment
-To verify the Falcon sensor auto-deploys to new nodes:
+### Testing Daemon Service Auto-Deployment
+To verify the Falcon sensor automatically deploys to new nodes via the Daemon Service:
 
 ```bash
-# 1. Check current nodes
+# 1. Check current state
 aws ecs list-container-instances \
     --cluster ecs-bottlerocket-test
 
-# 2. Add a node by increasing ASG capacity
+aws ecs list-tasks \
+    --cluster ecs-bottlerocket-test \
+    --service-name crowdstrike-falcon-node-daemon
+
+# 2. Add a new node by increasing ASG capacity
 aws autoscaling update-auto-scaling-group \
     --auto-scaling-group-name test-ecs-asg \
     --desired-capacity 3
 
-# 3. Monitor deployment
+# 3. Monitor deployment (run these commands to watch the progress)
+# Watch for new EC2 instance
+aws ec2 describe-instances \
+    --filters "Name=tag:aws:autoscaling:groupName,Values=test-ecs-asg" "Name=instance-state-name,Values=running" \
+    --query 'Reservations[].Instances[].[InstanceId,State.Name,LaunchTime]' \
+    --output table
+
+# Watch for ECS container instance registration
 aws ecs list-container-instances \
     --cluster ecs-bottlerocket-test
 
-# 4. Check Falcon sensor deployment
+# Verify Falcon sensor task is created on new node
 aws ecs list-tasks \
     --cluster ecs-bottlerocket-test \
     --service-name crowdstrike-falcon-node-daemon
 ```
+
+The Daemon Service should automatically deploy the Falcon sensor to the new node. You should see:
+1. Number of container instances increase by 1
+2. Number of Falcon sensor tasks increase by 1
+3. New task running on the newly added instance
 
 ### Cleanup
 ```bash
@@ -155,6 +174,7 @@ terraform destroy
                                    │                 │
                                    └─────────────────┘
 ```
+
 ## CI/CD Pipeline Integration
 
 This Terraform configuration can be used in CI/CD pipelines for Infrastructure as Code deployments. The repository includes all necessary configuration files for automated deployments through platforms like:
@@ -168,4 +188,6 @@ Required pipeline variables:
 - CrowdStrike Falcon credentials
 - Environment-specific configurations
 
+## License
+Apache License
 
