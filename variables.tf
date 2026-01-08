@@ -59,3 +59,45 @@ variable "enable_nat_gateway" {
   type        = bool
   default     = false
 }
+
+variable "enable_monitoring" {
+  description = "Enable detailed monitoring for EC2 instances"
+  type        = bool
+  default     = true
+}
+
+variable "root_volume_size" {
+  description = "Size of the root volume in GB"
+  type        = number
+  default     = 30
+}
+
+variable "root_volume_type" {
+  description = "Type of the root volume (gp2, gp3, io1, etc.)"
+  type        = string
+  default     = "gp3"
+}
+
+variable "asg_desired_capacity" {
+  description = "Desired number of instances in ASG"
+  type        = number
+  default     = 2
+}
+
+variable "asg_max_size" {
+  description = "Maximum number of instances in ASG"
+  type        = number
+  default     = 4
+}
+
+variable "asg_min_size" {
+  description = "Minimum number of instances in ASG"
+  type        = number
+  default     = 1
+}
+
+variable "enable_termination_protection" {
+  description = "Enable termination protection for EC2 instances"
+  type        = bool
+  default     = false
+}
