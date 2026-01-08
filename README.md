@@ -167,6 +167,5 @@ Required pipeline variables:
 - AWS credentials
 - CrowdStrike Falcon credentials
 - Environment-specific configurations
-```
 
 
