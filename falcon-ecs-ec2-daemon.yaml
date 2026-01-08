@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Creates an ECS task definition and service for running the Falcon Container Sensor"
+
+Parameters:
+  ECSClusterName:
+    Type: String
+    Description: Name of the ECS cluster where the service will run
+  
+  FalconCID:
+    Type: String
+    Description: CrowdStrike Falcon CID
+  
+  FalconImagePath:
+    Type: String
+    Description: Path to the Falcon Container image in ECR
+
+  FalconClientId:
+    Type: String
+    Description: CrowdStrike Falcon API Client ID
+    NoEcho: true
+
+  FalconClientSecret:
+    Type: String
+    Description: CrowdStrike Falcon API Client Secret
+    NoEcho: true
+
+  Region:
+    Type: String
+    Description: CrowdStrike Falcon Cloud Region
+    Default: us-1
+
+Resources:
+  FalconECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: crowdstrike-falcon-node-sensor
+      RequiresCompatibilities:
+        - EC2
+      NetworkMode: bridge
+      ContainerDefinitions:
+        - Name: crowdstrike-falcon-node-sensor
+          Image: !Ref FalconImagePath
+          Essential: true
+          Environment:
+            - Name: FALCONCTL_OPT_CID
+              Value: !Ref FalconCID
+            - Name: FALCONCTL_OPT_TAGS
+              Value: !Sub "ecs-cluster:${ECSClusterName}"
+            - Name: FALCON_CLIENT_ID
+              Value: !Ref FalconClientId
+            - Name: FALCON_CLIENT_SECRET
+              Value: !Ref FalconClientSecret
+            - Name: FALCON_CLOUD_REGION
+              Value: !Ref Region
+          MountPoints:
+            - SourceVolume: falcon-sensor-kernels
+              ContainerPath: /opt/CrowdStrike/falcon-sensor-kernels
+              ReadOnly: false
+          Privileged: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FalconLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: falcon-sensor
+      Volumes:
+        - Name: falcon-sensor-kernels
+          Host:
+            SourcePath: /opt/CrowdStrike/falcon-sensor-kernels
+
+  FalconLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${ECSClusterName}/falcon-sensor"
+      RetentionInDays: 30
+
+  FalconECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: crowdstrike-falcon-node-daemon
+      Cluster: !Ref ECSClusterName
+      TaskDefinition: !Ref FalconECSTaskDefinition
+      DesiredCount: 1
+      LaunchType: EC2
+      SchedulingStrategy: DAEMON
+      DeploymentConfiguration:
+        MaximumPercent: 100
+        MinimumHealthyPercent: 0
+
+Outputs:
+  TaskDefinitionArn:
+    Description: ARN of the created task definition
+    Value: !Ref FalconECSTaskDefinition
+  
+  ServiceName:
+    Description: Name of the created ECS service
+    Value: !GetAtt FalconECSService.Name
+  
+  LogGroupName:
+    Description: Name of the CloudWatch Log Group
+    Value: !Ref FalconLogGroup
