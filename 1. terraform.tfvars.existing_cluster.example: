@@ -1,0 +1,25 @@
+# Deployment Mode
+deployment_mode = "existing_cluster"
+
+# Region and Environment
+aws_region  = "us-east-1"
+environment = "prod"
+
+# Existing Cluster Configuration
+existing_cluster_config = {
+  cluster_name = "your-existing-cluster"
+  vpc_id       = "vpc-xxxxx"
+  subnet_ids   = ["subnet-xxxxx", "subnet-yyyyy"]
+}
+
+# CrowdStrike Falcon Configuration
+falcon_cid           = "YOUR_FALCON_CID"
+falcon_image_path    = "YOUR_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/falconsensor:latest"
+
+# Resource Tags
+tags = {
+  Environment = "prod"
+  Project     = "falcon-ecs"
+  Terraform   = "true"
+  Owner       = "your-team"
+}
