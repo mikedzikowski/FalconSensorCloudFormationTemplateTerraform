@@ -1,10 +1,13 @@
-# Data source for Bottlerocket AMI
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
 data "aws_ami" "bottlerocket_ami" {
   most_recent = true
   owners      = ["amazon"]
 
   filter {
-    name   = "image-id"
-    values = [var.bottlerocket_ami_id]
+    name   = "name"
+    values = ["bottlerocket-aws-ecs-1-*-x86_64"]
   }
 }
