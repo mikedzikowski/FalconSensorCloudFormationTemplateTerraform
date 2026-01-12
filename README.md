@@ -152,40 +152,6 @@ The Daemon Service should automatically deploy the Falcon sensor to the new node
 2. Number of Falcon sensor tasks increase by 1
 3. New task running on the newly added instance
 
-### Cleanup
-
-```bash
-
-terraform destroy
-```
-
-## Architecture
-
-```mermaid
-                                     ┌─────────────────┐
-                                     │                 │
-                                     │  Auto Scaling   │
-                                     │     Group       │
-                                     │                 │
-                                     └────────┬────────┘
-                                              │
-                                              ▼
-┌─────────────────┐                 ┌─────────────────┐
-│                 │                 │                 │
-│   ECS Cluster   │◄────────────────│  EC2 Instances  │
-│                 │                 │  (Bottlerocket) │
-│                 │                 │                 │
-└────────┬────────┘                 └────────┬────────┘
-         │                                   │
-         │                                   ▼
-         │                          ┌─────────────────┐
-         │                          │                 │
-         └─────────────────────────►│ Falcon Sensor  │
-                                   │    (Daemon)     │
-                                   │                 │
-                                   └─────────────────┘
-```
-
 ## CI/CD Pipeline Integration
 
 This Terraform configuration can be used in CI/CD pipelines for Infrastructure as Code deployments. The repository includes all necessary configuration files for automated deployments through platforms like:
@@ -218,76 +184,18 @@ aws iam remove-role-from-instance-profile \
     --role-name test-ecs-instance-role
 aws iam delete-instance-profile \
     --instance-profile-name test-ecs-instance-profile
+```
 
-### Cleanup
+## Cleanup
 
 To completely clean up all resources:
 
 1.Remove Terraform-managed resources:
-```bash
+
+``` bash
 terraform destroy
 ```
 
-2.Clean up CloudShell environment:
-
-```bash
-# Remove repository
-cd ~
-rm -rf FalconSensorCloudFormationTemplateTerraform
-
-# Remove Terraform installation (optional)
-sudo rm /usr/local/bin/terraform
-```
-
-3.Manual cleanup (if needed):
-
-```bash
-# Delete CloudFormation stack
-aws cloudformation delete-stack --stack-name test-falcon-ecs-ec2-daemon
-
-# Delete Auto Scaling Group
-aws autoscaling delete-auto-scaling-group \
-    --auto-scaling-group-name test-ecs-asg \
-    --force-delete
-
-# Delete Launch Template
-aws ec2 delete-launch-template \
-    --launch-template-name test-ecs-template
-
-# Clean up IAM resources
-aws iam remove-role-from-instance-profile \
-    --instance-profile-name test-ecs-instance-profile \
-    --role-name test-ecs-instance-role
-aws iam delete-instance-profile \
-    --instance-profile-name test-ecs-instance-profile
-aws iam detach-role-policy \
-    --role-name test-ecs-instance-role \
-    --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
-aws iam delete-role \
-    --role-name test-ecs-instance-role
-
-# Delete ECS Cluster
-aws ecs delete-cluster \
-    --cluster test-ecs-cluster
-```
-
-4.Verify cleanup:
-
-```bash
-# Check for running instances
-aws ec2 describe-instances \
-    --filters "Name=tag:Project,Values=falcon-ecs" \
-    --query 'Reservations[].Instances[].InstanceId'
-
-# Check for remaining ECS resources
-aws ecs list-clusters
-aws ecs list-container-instances --cluster test-ecs-cluster
-
-# Check for remaining IAM resources
-aws iam list-roles | grep test-ecs
-aws iam list-instance-profiles | grep test-ecs
-
-This cleanup section provides a comprehensive guide for removing all resources and cleaning up the development environment.
 ## License
 
 Apache License
