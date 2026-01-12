@@ -1,18 +1,21 @@
 # ECS Bottlerocket Cluster with Falcon Sensor - Terraform
 
-This repository provides Terraform configurations to deploy an ECS cluster using Bottlerocket OS and the CrowdStrike Falcon sensor. It transforms the official CrowdStrike AWS CloudFormation template into a comprehensive Terraform solution.
+This repository provides Terraform configurations to deploy an ECS cluster using Bottlerocket OS and the CrowdStrike Falcon sensor. It transforms the official CrowdStrike AWS CloudFormation template into a comprehensive Terraform solution to test and prove out the Crowdstrike sensor on ECS Bottlerocket Clusters.
 
 > This implementation is based on the official [CrowdStrike Falcon Sensor CloudFormation Template](https://github.com/CrowdStrike/aws-cloudformation-falcon-sensor-ecs) repository.
 
 ## Quick Start with AWS CloudShell
 
 ### Prerequisites
+
 - Access to AWS CloudShell
+
 - CrowdStrike Falcon sensor image in ECR
   > **Important**: Follow [these instructions](https://github.com/CrowdStrike/aws-cloudformation-falcon-sensor-ecs/tree/main/falcon-sensor-ecs-ec2#step-1-get-the-falcon-sensor-image) to pull and push the Falcon sensor image to your ECR repository
 - CrowdStrike Falcon credentials (CID)
 
 The Falcon sensor image must be available in your ECR repository before deploying this solution. The image path in your `terraform.tfvars` should look like:
+
 ```hcl
 falcon_image_path = "YOUR_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/falconsensor:latest"
 ```
@@ -20,6 +23,7 @@ falcon_image_path = "YOUR_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/falconsenso
 ### Deployment Steps
 
 1. Install Terraform in AWS CloudShell:
+
 ```bash
 # Download Terraform
 wget https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip
@@ -40,7 +44,8 @@ terraform version
 rm terraform_1.6.6_linux_amd64.zip
 ```
 
-2. Clone repository and get CloudFormation template:
+2.Clone repository and get CloudFormation template:
+
 ```bash
 # Clone repository
 git clone https://github.com/mikedzikowski/FalconSensorCloudFormationTemplateTerraform.git
@@ -50,7 +55,8 @@ cd FalconSensorCloudFormationTemplateTerraform
 curl -o falcon-ecs-ec2-daemon.yaml https://raw.githubusercontent.com/CrowdStrike/aws-cloudformation-falcon-sensor-ecs/main/falcon-sensor-ecs-ec2/falcon-ecs-ec2-daemon.yaml
 ```
 
-3. Create terraform.tfvars:
+3.Create terraform.tfvars:
+
 ```bash
 cat << EOF > terraform.tfvars
 # Region and Environment
@@ -82,15 +88,19 @@ tags = {
 EOF
 ```
 
-4. Deploy:
+4.Deploy:
+
 ```bash
+
 terraform init
 terraform plan
 terraform apply
 ```
 
 ### Verification
+
 ```bash
+
 # Check ECS tasks
 aws ecs list-tasks \
     --cluster ecs-bottlerocket-test \
@@ -102,6 +112,7 @@ aws autoscaling describe-auto-scaling-groups \
 ```
 
 ### Testing Daemon Service Auto-Deployment
+
 To verify the Falcon sensor automatically deploys to new nodes via the Daemon Service:
 
 ```bash
@@ -136,18 +147,21 @@ aws ecs list-tasks \
 ```
 
 The Daemon Service should automatically deploy the Falcon sensor to the new node. You should see:
+
 1. Number of container instances increase by 1
 2. Number of Falcon sensor tasks increase by 1
 3. New task running on the newly added instance
 
 ### Cleanup
+
 ```bash
+
 terraform destroy
 ```
 
 ## Architecture
 
-```
+```mermaid
                                      ┌─────────────────┐
                                      │                 │
                                      │  Auto Scaling   │
@@ -175,12 +189,14 @@ terraform destroy
 ## CI/CD Pipeline Integration
 
 This Terraform configuration can be used in CI/CD pipelines for Infrastructure as Code deployments. The repository includes all necessary configuration files for automated deployments through platforms like:
+
 - GitHub Actions
 - AWS CodePipeline
 - Jenkins
 - Azure DevOps
 
 Required pipeline variables:
+
 - AWS credentials
 - CrowdStrike Falcon credentials
 - Environment-specific configurations
@@ -188,6 +204,7 @@ Required pipeline variables:
 ## Troubleshooting
 
 If you encounter "already exists" errors, manually clean up resources:
+
 ```bash
 # Delete CloudFormation stack if it exists
 aws cloudformation delete-stack --stack-name test-falcon-ecs-ec2-daemon
@@ -203,23 +220,10 @@ aws iam delete-instance-profile \
     --instance-profile-name test-ecs-instance-profile
 ```
 
-## Security Considerations
-
-1. Network Security:
-   - Instances are launched in public subnets by default
-   - Security groups restrict inbound access
-   - Optional NAT Gateway support for private subnets
-
-2. Instance Security:
-   - Bottlerocket OS provides enhanced security
-   - Root volume encryption enabled
-   - IMDSv2 supported
-
-3. Credentials:
-   - Store sensitive values in terraform.tfvars (git ignored)
-   - Use AWS Secrets Manager for production deployments
-   - Follow least privilege principle for IAM roles
-
 ## License
 
-MIT License
+Apache License
+
+## Terraform
+
+Happy terraforming!
