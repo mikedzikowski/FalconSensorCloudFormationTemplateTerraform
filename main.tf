@@ -2,17 +2,13 @@ provider "aws" {
   region = var.aws_region
 }
 
-locals {
-  create_new_cluster = var.deployment_mode == "new_cluster"
-  cluster_name       = local.create_new_cluster ? var.cluster_name : var.existing_cluster_config.cluster_name
-  vpc_id            = local.create_new_cluster ? aws_vpc.main[0].id : var.existing_cluster_config.vpc_id
-  subnet_ids        = local.create_new_cluster ? aws_subnet.public[*].id : var.existing_cluster_config.subnet_ids
+# Data source for availability zones
+data "aws_availability_zones" "available" {
+  state = "available"
 }
 
-# VPC Resources - Only created for new cluster
+# Create VPC for the ECS cluster
 resource "aws_vpc" "main" {
-  count = local.create_new_cluster ? 1 : 0
-
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
@@ -25,26 +21,14 @@ resource "aws_vpc" "main" {
   )
 }
 
-resource "aws_internet_gateway" "main" {
-  count = local.create_new_cluster ? 1 : 0
-
-  vpc_id = aws_vpc.main[0].id
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.environment}-ecs-igw"
-    }
-  )
-}
-
+# Create public subnets
 resource "aws_subnet" "public" {
-  count = local.create_new_cluster ? var.subnet_count : 0
-
-  vpc_id                  = aws_vpc.main[0].id
-  cidr_block             = cidrsubnet(var.vpc_cidr, 8, count.index)
-  availability_zone      = data.aws_availability_zones.available.names[count.index]
-  map_public_ip_on_launch = true
+  count             = var.subnet_count
+  vpc_id           = aws_vpc.main.id
+  cidr_block       = cidrsubnet(var.vpc_cidr, 8, count.index)
+  availability_zone = data.aws_availability_zones.available.names[count.index]
+  
+  map_public_ip_on_launch = !var.enable_nat_gateway
 
   tags = merge(
     var.tags,
@@ -54,14 +38,25 @@ resource "aws_subnet" "public" {
   )
 }
 
-resource "aws_route_table" "public" {
-  count = local.create_new_cluster ? 1 : 0
+# Create Internet Gateway
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
 
-  vpc_id = aws_vpc.main[0].id
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.environment}-ecs-igw"
+    }
+  )
+}
+
+# Create route table
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main[0].id
+    gateway_id = aws_internet_gateway.main.id
   }
 
   tags = merge(
@@ -72,18 +67,18 @@ resource "aws_route_table" "public" {
   )
 }
 
+# Associate route table with subnets
 resource "aws_route_table_association" "public" {
-  count = local.create_new_cluster ? var.subnet_count : 0
-
+  count          = var.subnet_count
   subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public[0].id
+  route_table_id = aws_route_table.public.id
 }
 
-# Security Group - Created for both modes
+# Create security group for ECS instances
 resource "aws_security_group" "ecs_instances" {
   name        = "${var.environment}-ecs-instances-sg"
   description = "Security group for ECS instances"
-  vpc_id      = local.vpc_id
+  vpc_id      = aws_vpc.main.id
 
   egress {
     from_port   = 0
@@ -100,10 +95,8 @@ resource "aws_security_group" "ecs_instances" {
   )
 }
 
-# ECS Cluster - Only created for new cluster
+# Create ECS Cluster
 resource "aws_ecs_cluster" "main" {
-  count = local.create_new_cluster ? 1 : 0
-  
   name = var.cluster_name
 
   tags = merge(
@@ -114,16 +107,53 @@ resource "aws_ecs_cluster" "main" {
   )
 }
 
-# CloudFormation stack for Falcon sensor - Created for both modes
+# Create IAM role for ECS instances
+resource "aws_iam_role" "ecs_instance_role" {
+  name = "${var.environment}-ecs-instance-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+# Attach ECS instance policy
+resource "aws_iam_role_policy_attachment" "ecs_instance_role_policy" {
+  role       = aws_iam_role.ecs_instance_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+}
+
+# Create instance profile
+resource "aws_iam_instance_profile" "ecs_instance_profile" {
+  name = "${var.environment}-ecs-instance-profile"
+  role = aws_iam_role.ecs_instance_role.name
+}
+
+# Deploy the CloudFormation stack for Falcon sensor
 resource "aws_cloudformation_stack" "falcon_sensor" {
   name = "${var.environment}-falcon-ecs-ec2-daemon"
   template_body = file("${path.module}/falcon-ecs-ec2-daemon.yaml")
 
   parameters = {
-    ECSClusterName  = local.cluster_name
+    ECSClusterName  = aws_ecs_cluster.main.name
     FalconCID       = var.falcon_cid
     FalconImagePath = var.falcon_image_path
   }
 
   capabilities = ["CAPABILITY_IAM", "CAPABILITY_NAMED_IAM"]
+
+  depends_on = [
+    aws_ecs_cluster.main,
+    aws_autoscaling_group.ecs
+  ]
 }

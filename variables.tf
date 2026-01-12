@@ -4,30 +4,10 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "deployment_mode" {
-  description = "Deployment mode: 'new_cluster' or 'existing_cluster'"
-  type        = string
-  default     = "new_cluster"
-  validation {
-    condition     = contains(["new_cluster", "existing_cluster"], var.deployment_mode)
-    error_message = "deployment_mode must be either 'new_cluster' or 'existing_cluster'"
-  }
-}
-
 variable "environment" {
   description = "Environment name"
   type        = string
   default     = "dev"
-}
-
-variable "existing_cluster_config" {
-  description = "Configuration for existing cluster deployment"
-  type = object({
-    cluster_name = string
-    vpc_id       = string
-    subnet_ids   = list(string)
-  })
-  default = null
 }
 
 variable "vpc_cidr" {
@@ -37,9 +17,8 @@ variable "vpc_cidr" {
 }
 
 variable "cluster_name" {
-  description = "Name of the ECS cluster (for new cluster deployment)"
+  description = "Name of the ECS cluster"
   type        = string
-  default     = ""
 }
 
 variable "falcon_cid" {
@@ -81,6 +60,24 @@ variable "enable_nat_gateway" {
   default     = false
 }
 
+variable "enable_monitoring" {
+  description = "Enable detailed monitoring for EC2 instances"
+  type        = bool
+  default     = true
+}
+
+variable "root_volume_size" {
+  description = "Size of the root volume in GB"
+  type        = number
+  default     = 30
+}
+
+variable "root_volume_type" {
+  description = "Type of the root volume (gp2, gp3, io1, etc.)"
+  type        = string
+  default     = "gp3"
+}
+
 variable "asg_desired_capacity" {
   description = "Desired number of instances in ASG"
   type        = number
@@ -97,4 +94,10 @@ variable "asg_min_size" {
   description = "Minimum number of instances in ASG"
   type        = number
   default     = 1
+}
+
+variable "enable_termination_protection" {
+  description = "Enable termination protection for EC2 instances"
+  type        = bool
+  default     = false
 }
