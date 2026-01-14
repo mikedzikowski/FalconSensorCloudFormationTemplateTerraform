@@ -195,6 +195,75 @@ To completely clean up all resources:
 ``` bash
 terraform destroy
 ```
+### Handling Stuck Resources and Cleanup Issues
+
+If you encounter stuck CloudFormation stacks or dependency issues during cleanup:
+
+1. Force delete ECS services first:
+```bash
+# List ECS services
+aws ecs list-services --cluster your-cluster-name
+
+# Force delete ECS service
+aws ecs delete-service \
+    --cluster your-cluster-name \
+    --service crowdstrike-falcon-node-daemon \
+    --force
+```
+
+2. Release Elastic IPs:
+```bash
+# List Elastic IPs
+aws ec2 describe-addresses
+
+# Release each EIP
+aws ec2 release-address --allocation-id <eip-allocation-id>
+```
+
+3. Force delete CloudFormation stack:
+```bash
+# Delete stack and wait
+aws cloudformation delete-stack --stack-name your-stack-name
+aws cloudformation wait stack-delete-complete --stack-name your-stack-name
+
+# If stack is stuck, list stack resources
+aws cloudformation list-stack-resources --stack-name your-stack-name
+
+# Delete resources manually if needed
+aws ecs delete-service --cluster your-cluster-name --service your-service-name --force
+aws autoscaling delete-auto-scaling-group --auto-scaling-group-name your-asg-name --force-delete
+```
+
+4. Clean up networking dependencies:
+```bash
+# Detach Internet Gateway
+aws ec2 detach-internet-gateway \
+    --internet-gateway-id <igw-id> \
+    --vpc-id <vpc-id>
+
+# Delete Internet Gateway
+aws ec2 delete-internet-gateway --internet-gateway-id <igw-id>
+
+# Delete subnets
+aws ec2 delete-subnet --subnet-id <subnet-id>
+
+# Delete VPC
+aws ec2 delete-vpc --vpc-id <vpc-id>
+```
+
+5. If terraform destroy is stuck:
+```bash
+# Cancel the current operation
+Ctrl+C
+
+# Clean up resources manually using AWS CLI
+# Then run terraform refresh to update state
+terraform refresh
+
+# Try destroy again
+terraform destroy
+```
+Remember to replace placeholder values (your-cluster-name, your-stack-name, etc.) with your actual resource names.
 
 ## License
 
